@@ -1,0 +1,60 @@
+---
+title: "SOAP"
+
+date: "2023-10-10"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary on a Page (SOAP): Credit Risk Modeling for Loan Repayment
+
+## Objectives Addressed:
+
+- Developed a predictive model for loan repayment using Generalized Linear Model (GLM) and Generalized Linear Mixed Model (GLMM).
+- Identified key variables affecting loan default risk.
+- Addressed management concerns about explaining loan assessment and accounting for variations over time and between states.
+
+## Key Findings:
+
+### Model Performance
+- **New Model vs Old Model**: The new model outperforms the previous one, showing a better ROC curve and higher Gini scores.
+  - **Evidence**: ROC curves for the new model bow more towards the top-left corner, indicating higher true positive rates and lower false positive rates.
+
+```{r, echo=FALSE}
+# Include ROC Curve Comparison image
+knitr::include_graphics("Rplot.jpeg")
+```
+
+
+### Important Variables
+- **Interest Rate, Term, Annual Income**: Traditional variables like interest rate and annual income are significant predictors.
+- **Home Ownership, Loan Purpose**: Less traditional variables like home ownership status and loan purpose also play a role.
+  - **Evidence**: Variables with p-values < 0.05 in the GLM model.
+
+### Management Concerns
+
+#### Explainability
+- Each significant variable is clearly interpreted for its effect on loan default risk, aligning with regulatory requirements.
+
+#### Variations Over Time & Location
+- Accounting for variations in time and states improves model robustness.
+  - **Evidence**: Non-zero variance for random effects in the GLMM model.
+
+## Recommendations:
+- **Adopt the New Model**: Given its superior performance and explainability.
+- **Consider Time and Location**: Use the GLMM model to account for variations in different time periods and states.
+- **Focus on Key Variables**: Prioritize variables like interest rate and annual income in loan assessments.
+
+## Confidence Intervals:
+- All assertions are backed by statistical tests, and confidence intervals are provided for each significant variable.
+
+## Takeaway:
+Our new credit risk model not only aligns with traditional banking risk factors but also incorporates less traditional ones, offering a nuanced understanding of risk. It's robust, explainable, and ready for deployment.
+
+---
+
+*This is not just another model; it's a comprehensive solution to your credit risk challenges.*
+

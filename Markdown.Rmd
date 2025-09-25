@@ -1,0 +1,154 @@
+---
+title: "GLM and GLMM Models for Loan Repayment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r}
+install.packages("ROCR")
+library(caret)
+library(ROCR)
+library(lme4)
+```
+
+## Read Data
+```{r}
+train_data <- read.csv("benchmark_training_loan_data.csv")
+valid_data <- read.csv("benchmark_validation_loan_data.csv")
+```
+
+## Build GLM Model
+```{r}
+glm_model <- glm(repay_fail ~ loan_amnt + term + int_rate + emp_length + home_ownership + annual_inc + verification_status + purpose + dti + delinq_2yrs + inq_last_6mths + open_acc + pub_rec + revol_bal + revol_util + total_acc + credit_age_yrs, data = train_data, family = binomial)
+```
+
+## Predict and Evaluate GLM Model
+```{r}
+train_pred_prob <- predict(glm_model, newdata = train_data, type = "response")
+valid_pred_prob <- predict(glm_model, newdata = valid_data, type = "response")
+
+pred_obj_train <- prediction(train_pred_prob, train_data$repay_fail)
+pred_obj_valid <- prediction(valid_pred_prob, valid_data$repay_fail)
+
+perf_obj_train <- performance(pred_obj_train, "tpr", "fpr")
+perf_obj_valid <- performance(pred_obj_valid, "tpr", "fpr")
+```
+
+## ROC Curves and Gini Score
+
+The new model's ROC curves bow more towards the top-left corner, which indicates better performance compared to the older model with straight lines. A curve closer to the top-left corner signifies a higher true positive rate and a lower false positive rate, leading to a better AUC (Area Under the Curve) and Gini score.
+
+Expected Performance on New Loan Applications:
+The new model is likely to perform better on new loan applications as it shows improved discrimination between default and non-default cases in both training and validation sets.
+
+The bowing of the curve towards the top-left corner suggests that the model is better at ranking a randomly chosen positive instance higher than a randomly chosen negative one. Therefore, it can be expected to generalize well to new, unseen data.
+
+
+```{r}
+par(mfrow=c(1, 2))
+
+plot(perf_obj_train, main="ROC Curve for Training Set", col=2, lwd=2)
+abline(a=0, b=1, lty=2, col="gray")
+
+auc_train <- as.numeric(performance(pred_obj_train, measure = "auc")@y.values)
+gini_train = 2 * auc_train - 1
+print(paste("Gini Score for training set: ", gini_train))
+
+plot(perf_obj_valid, main="ROC Curve for Validation Set", col=3, lwd=2)
+abline(a=0, b=1, lty=2, col="gray")
+
+auc_valid <- as.numeric(performance(pred_obj_valid, measure = "auc")@y.values)
+gini_valid = 2 * auc_valid - 1
+print(paste("Gini Score for validation set: ", gini_valid))
+```
+
+## Identify Important Variables
+```{r}
+glm_summary <- summary(glm_model)
+glm_summary
+p_values <- glm_summary$coefficients[, 4]
+important_vars <- names(which(p_values < 0.05))
+print("Important Variables:")
+print(important_vars)
+```
+
+## Interpret Important Variables
+
+
+Based on the output from our model, the following variables significantly impact the likelihood of loan default:
+
+- **Term of 60 months**: Increases the likelihood of default. In our model, longer loan terms are identified as riskier, aligning with traditional views.
+  
+- **Interest Rate**: Increases the likelihood of default. Our model confirms that higher interest rates make loans more challenging to repay.
+  
+- **Employment Length N/A**: Increases the likelihood of default. Our model suggests that the absence of employment information could be a potential risk factor.
+  
+- **Home Ownership (Other)**: Increases the likelihood of default. This variable is less commonly considered in traditional models, but our model finds it significant.
+  
+- **Annual Income**: Decreases the likelihood of default. Consistent with traditional risk models, higher income appears to be a positive indicator in our model.
+  
+- **Source Verified**: Decreases the likelihood of default. Our model aligns with traditional understanding that verification generally reduces risk.
+  
+- **Purpose (Medical, Moving, Other, Small Business, Vacation)**: Increases the likelihood of default. Our model finds significance in loan purpose, although the categories may differ from traditional models.
+  
+- **Inquiries in Last 6 Months**: Increases the likelihood of default. Similar to traditional risk models, our model flags multiple inquiries as a risk factor.
+  
+- **Public Records**: Increases the likelihood of default. Our model concurs with traditional models that public records like defaults or bankruptcies are negative indicators.
+  
+- **Revolving Balance and Utilization**: Increases the likelihood of default. In our model, high balances and utilization rates are risk factors, just like in traditional models.
+
+Our model not only aligns with traditional banking risk factors such as interest rate, income, and credit inquiries but also incorporates less traditional factors like loan purpose and home ownership status, offering a nuanced understanding of risk.
+
+```{r}
+important_coeff <- glm_summary$coefficients[important_vars, 1]
+for (var in important_vars) {
+  coeff <- important_coeff[var]
+  if (coeff > 0) {
+    print(paste(var, "increases the likelihood of loan default."))
+  } else {
+    print(paste(var, "decreases the likelihood of loan default."))
+  }
+}
+```
+
+## Extended Data and GLMM Models
+```{r}
+extended_version_data <- read.csv("extendend_version_loan_data.csv")
+extended_version_data$issue_d <- as.factor(extended_version_data$issue_d)
+extended_version_data$addr_state <- as.factor(extended_version_data$addr_state)
+
+vars_to_standardize <- c("loan_amnt", "int_rate", "annual_inc", "dti", "delinq_2yrs", "inq_last_6mths", "open_acc", "pub_rec", "revol_bal", "revol_util", "total_acc", "credit_age_yrs")
+extended_version_data[vars_to_standardize] <- scale(extended_version_data[vars_to_standardize])
+
+subset_data <- extended_version_data[1:1000,]
+glmm_model_subset <- glmer(repay_fail ~ loan_amnt + int_rate + (1|issue_d) + (1|addr_state), data = subset_data, family = binomial)
+glmm_summary_subset <- summary(glmm_model_subset)
+print(glmm_summary_subset)
+```
+
+## Run GLMM on Full Data
+
+**Can accounting for this variation (e.g., state/zip-code and time) improve performance benchmarks?**
+
+The GLMM model includes **issue_d** (time) and **addr_state** (geographical location) as random effects. The non-zero variance for these random effects suggests that there is indeed variation in loan default rates over time and between states. By accounting for these variations, the model can better adapt to the intricacies of different time periods and geographical locations. This is likely to improve the model's predictive accuracy and generalizability, making it more robust for real-world applications.
+
+
+**Are there any surprising differences in variables that are important for predicting credit risk?**
+
+In the GLMM model, only **loan_amnt** and **int_rate** were statistically significant predictors, as opposed to the GLM model where a broader set of variables were significant. This could indicate that once we account for variations in time (**issue_d**) and location (**addr_state**), some of the variables that were previously significant no longer stand out. This is surprising because it suggests that the importance of some variables in predicting loan default may be conditional on the time and place. For example, variables like **emp_length** or **home_ownership** might be less universally important than initially thought, once we account for these other factors.
+
+
+**Does credit risk change over time or between states?**
+
+The GLMM model suggests that there is variation in credit risk both over time (**issue_d**) and between states (**addr_state**), as evidenced by the non-zero variance for these random effects.
+
+
+```{r}
+glmm_model_full <- glmer(repay_fail ~ loan_amnt + int_rate + (1|issue_d) + (1|addr_state), data = extended_version_data, family = binomial)
+glmm_summary_full <- summary(glmm_model_full)
+print(glmm_summary_full)
+```
