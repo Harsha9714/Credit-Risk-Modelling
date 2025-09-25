@@ -1,0 +1,488 @@
+---
+title: "Minor Data Analysis Project"
+author: "Harsha Lingutla:N9738355"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+date: "2023-09-11"
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+Load key libraries for use throughout the analysis
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+## Import Data
+
+Import sales data that summarizes the number of high-value transactions and the total hours worked by sales personnel, categorized by the skill level of the sales team and the design/layout of the store.
+
+```{r}
+read.all <- read.csv("salesdata.csv")
+head(read.all)
+
+```
+Observations:
+
+Layout: Ordinal,Integer
+
+Experience: Ordinal,Integer
+
+Hours: Discrete,Integer
+
+Sales: Discrete,Integer
+
+
+## Summary Statistics
+
+Generate summary statistics for the dataset to assess its properties. It's crucial to identify any absent data values and recognize unique patterns within the dataset.
+
+```{r}
+library(psych)
+psych::describe(read.all)
+```
+
+There are no missing values across all variables. However, it's worth noting that the mean and standard deviation for the "Hours" variable are considerably high, indicating a wide range of data points within the "Hours" category.
+
+
+## Data Pre-Processing
+
+The X column has been excluded from the dataset because it does not pertain to sales. It is considered redundant as it duplicates the information found in the first column.
+
+```{r}
+read.data = subset(read.all, select = -c(X) )
+head(read.data)
+
+```
+
+
+
+
+## Exploratory Data Analysis
+
+### 1. Pairs Plot
+
+Subsequently, a visual examination of the sales data's correlations is conducted. This initial assessment aims to gauge the interrelationships between the variables.
+
+```{r}
+pairs(read.data)
+
+```
+
+1. The data exhibits a reasonably even distribution among all variables.
+2. There is no discernible correlation between Layout and Experience.
+3. Layout and Hours, as well as Experience and Hours, display noticeable correlations.
+4. Layout and Sales, along with Experience and Sales, exhibit significant correlations.
+
+
+
+### 2. Data Aggregation 
+
+Compute the mean Sales and cumulative Hours worked for every combination of Layout and Experience. This analysis aims to assess how Layout and Experience impact Sales performance.
+
+```{r}
+summary_data <- read.data %>%
+  group_by(Layout, Experience) %>%
+  summarise(AvgSales = mean(Sales), TotalHours = sum(Hours))
+```
+Print the summarised data:
+```{r}
+print(summary_data)
+```
+### 3. Data Visualisation
+```{r}
+
+ggplot(summary_data, aes(x = Experience, y = AvgSales, color = factor(Layout))) +
+  geom_point() +
+  labs(
+    title = "Relationship between Experience and AvgSales by Layout",
+    x = "Experience",
+    y = "AvgSales",
+    color = "Layout"
+  ) +
+  theme_minimal()
+```
+
+
+1. Based on both the table and the graph, the most robust combination in terms of Average Sales is Layout 2 paired with Experience level 4, yielding an average of 350.5.
+
+2. The second-highest performer is Layout 1 combined with Experience level 4, achieving an average of 202.2. This observation implies that greater experience correlates with increased sales.
+
+3. Additionally, it can be observed that, for all Experience levels except level 1, the more contemporary store layouts (Layout 2 and Layout 1) consistently demonstrate superior performance.
+
+4. Across all Experience levels, Layout 2 consistently outperforms others in terms of Average Sales.
+
+
+
+
+Generate a scatter plot that visualizes the relationship between Sales and Hours Worked, while incorporating different colors to represent the Layout variable. Essentially, this plot provides a concise summary of the sales data. 
+
+
+```{r}
+library(ggplot2)
+ggplot(summary_data, aes(x = TotalHours, y = AvgSales, color = factor(Layout))) + 
+  geom_point() + 
+  facet_wrap(~ Experience, scales = "free") +
+  labs(title = "Average Sales vs Hours Worked by Experience and Layout",
+       x = "Total Hours Worked",
+       y = "Average Sales",
+       color = "Layout") + 
+  theme_minimal()
+```
+
+
+1. Across all Experience levels and Layout types, lower Total Hours Worked correspond to higher Sales.
+
+2. The peak Sales performance was attained when Total Hours Worked were minimized, specifically in the case of Experience level 4 paired with Layout 2.
+
+3. It is evident that Total Hours Worked exhibits a negative correlation with Sales.
+
+
+### 4. Target Variable Histogram 
+
+Constructing a histogram with a density plot to examine the distribution of the sales (target) variable. This analysis aims to assist in determining the appropriate regression model to employ.
+
+```{r}
+ggplot(data=read.data, aes(Sales)) +
+  geom_histogram(aes(y =..density..), fill = "orange") +
+  geom_density()
+```
+
+
+Evidently, the distribution of the target variable is not in accordance with a normal distribution curve, making it unsuitable for linear regression. In cases where the dependent variable deviates from the typical bell-shaped Normal distribution, it is advisable to opt for the Generalized Linear Model (GLM).
+
+### 5. Boxplot
+
+
+Generate boxplots to visualize the relationship between categorical variables, specifically Layout and Experience, in relation to the numerical variable Sales.
+
+```{r}
+ggplot(read.data, aes(x = Layout, y = Sales, fill = factor(Layout))) + geom_boxplot() + ggtitle("Sales by Layout")
+```
+
+
+Layout 2 demonstrates the highest sales figures, and Layout 1 exhibits a comparable, albeit slightly lower median than Layout 2. This underscores the fact that more contemporary store layouts tend to yield greater sales. Interestingly, despite Layout 1 being the newer option, Layout 2 outperforms it in terms of Sales.
+
+```{r}
+ggplot(read.data, aes(x = Experience, y = Sales, fill = factor(Experience))) + geom_boxplot() + ggtitle("Sales by Experience")
+```
+
+
+Experience level 4 boasts the highest Sales numbers, indicating that it corresponds to the Sales staff with the most extensive experience. It is evident that greater staff experience intuitively leads to increased Sales.
+
+### 6. Outliers
+
+Examining the independent variables (Layout, Experience, and Hours) for outliers to determine the presence of data skewness.
+
+```{r}
+library(reshape)
+meltData <- melt(read.data)
+p <- ggplot(meltData, aes(factor(variable), value))
+p + geom_boxplot() + facet_wrap(~variable, scale="free")
+```
+
+
+Evidently, there are no outliers in the case of Layout and Experience. However, when visually assessing the data for Hours, a solitary outlier stands out, exceeding the 2,000,000 mark.
+
+### 7. Z-Score
+
+Since the suspected outlier is within the Hours variable, I've introduced a new column in the data frame to include the Z-scores for that specific column (Hours). An observation can be deemed unusual if its Z-score surpasses 3 or falls below -3. Hence, we are now examining rows where the Z-score exceeds 3.
+
+```{r}
+read.data$zscore <- (abs(read.data$Hours-mean(read.data$Hours))/sd(read.data$Hours))
+max(read.data$zscore)
+```
+
+There are no Z-score values that surpass the threshold of '3', with the highest value reaching approximately 2.897. This suggests that there are no outliers in the Hours variable, contrary to what our initial visual inspection indicated. Consequently, we can disregard this discrepancy.
+
+Now, it's time to eliminate the temporary Z-score column since it is no longer necessary for our subsequent analysis.
+
+```{r}
+read.data = subset(read.data, select = -c(zscore) )
+```
+
+### 8. Correlation Matrix Visualization
+
+A correlation matrix serves as a valuable tool for understanding the relationships between various variables. By examining the correlation coefficients between two variables, we can gain insights into their associations and discern how alterations in one variable might influence others. This knowledge is instrumental in identifying which predictor variables exhibit the strongest correlations with sales.
+
+```{r}
+library(corrplot)
+
+corrplot(cor(read.data))
+```
+
+
+1. To begin with, it's essential for the independent variables to exhibit no correlation among themselves.
+
+2. Layout and experience display a correlation coefficient of 0, indicating no correlation between them.
+
+3. Layout and Hours demonstrate a moderately negative correlation of approximately 0.4, whereas Experience and Hours have a relatively low correlation of approximately 0.2.
+
+4. Concerning the predictor variables and the target variable, correlations vary. Layout and Sales exhibit a moderate correlation of 0.5.
+
+5. Experience and Sales show a low positive correlation of 0.3, while Hours and Sales display a moderate negative correlation of -0.5.
+
+6. All predictor variables exhibit correlations with Sales, making it essential to include them in our regression model.
+
+
+
+## Model Fitting and Evaluation
+
+A Poisson Generalized Linear Model (GLM) is employed, using Layout and Experience as predictor variables. The choice of a Poisson model is driven by the fact that the target variable (Sales) is characterized by count data. Initially, Layout and Experience are chosen as predictors, as the CEO is interested in determining whether sales staff experience with high-value transactions holds more significance than store layout in influencing sales. However, since Hours also shows correlation with Sales, it will be integrated into the regression analysis. The accuracy of these models will be assessed and compared. 
+
+```{r}
+model_1 <- glm(Sales ~ Layout + Experience, data = read.data, family=poisson)
+summary(model_1)
+```
+
+
+1. All variables are deemed significant as their respective p-values fall below the 0.05 threshold. When a p-value is less than 0.05, it signifies that the variable significantly impacts the response variable.
+
+2. In this model, Layout is negatively correlated with Sales, having a coefficient value of approximately -0.39, while Experience is positively correlated, with a coefficient of 0.30.
+
+3. A one-unit increase in Layout is associated with a decrease in Sales by approximately 0.39.
+
+4. Conversely, a one-unit increase in Experience is linked to an increase in Sales by approximately 0.30.
+
+5. It's crucial to assess whether the model exhibits over-dispersion or under-dispersion. Over-dispersion occurs when the Residual Deviance surpasses the degrees of freedom. In this case, the Residual Deviance (4224.1) significantly exceeds the degrees of freedom (69), suggesting that although the estimates are accurate, the model inadequately accounts for standard errors (standard deviation).
+
+6. The Null Deviance assesses how effectively the response variable is predicted solely by a model containing the intercept (grand mean). In contrast, the Residual Deviance reflects prediction quality when independent variables are included. In the information presented above, we observe that introducing the two independent variables leads to an increase in deviance from 4224.1 to 6213.8 (a difference of 2 degrees of freedom, i.e., 71-69=2). A greater disparity between these values indicates a poorer model fit.
+
+
+
+Subsequently, a more comprehensive Poisson Generalized Linear Model (GLM) is employed. Hours is introduced as an additional predictor variable in this full model, encompassing all available information in the dataset. Finally, a comparison is made between the previous, simpler model and the more complex one.
+
+```{r}
+model_2 <- glm(Sales ~ Layout + Experience + Hours, data=read.data, family=poisson)
+summary(model_2)
+```
+
+
+1. All the variables are deemed statistically significant, given that their p-values fall below the 0.05 threshold. A p-value less than 0.05 signifies a significant effect on the response variable. However, it's worth noting that in this model, Layout has a higher p-value, indicating that its effect is not as pronounced.
+
+2. In this model, Layout demonstrates a coefficient value of approximately 6.95e^-02, while Experience has a coefficient of approximately 3.91e^-01. This suggests that Layout is weakly correlated with Sales, whereas Experience exhibits a stronger correlation.
+
+3. It's essential to assess whether the model displays over-dispersion or under-dispersion. Over-dispersion arises when the Residual Deviance surpasses the degrees of freedom. In this case, the Residual Deviance (1644.4) significantly exceeds the degrees of freedom (68), indicating that although the estimates are accurate, the model doesn't adequately account for standard errors (standard deviation).
+
+4. The Null Deviance offers insights into how effectively the response variable is predicted by a model containing only the intercept (grand mean). Conversely, the Residual Deviance reflects prediction quality when independent variables are introduced. In the information presented above, we observe that incorporating the three independent variables results in an increase in deviance from 1644.4 to 6213.8 (a difference of 3 degrees of freedom, i.e., 71-68=3). A larger disparity between these values indicates a poorer model fit.
+
+
+To assess and determine the preferable model between Model_1 (comprising Layout and Experience as predictors) and Model_2 (with the addition of Hours), we employ the Likelihood Ratio Test (LR Test). The following steps outline the process for identifying the more suitable model for further analysis.
+
+```{r}
+library(lmtest)
+```
+
+
+```{r}
+nested <- glm(Sales~Layout + Experience,data=read.data)
+complex <- glm(Sales~Layout + Experience + Hours,data=read.data)
+
+lrtest(nested, complex)
+```
+
+A widely accepted significance level is 0.05. If the p-value falls below this threshold, we would reject the null hypothesis and determine that the more complex model is warranted. Consequently, we can reject Model_1, as its p-value is 4.26e^-07.
+
+As a result, Model_2 emerges as the preferred choice. This model will be employed for our final recommendations.
+
+
+### Checking for Fitness of Model_2
+
+
+To check the fitness of Model_2, the following diagnostic tools and techniques are utilised.
+
+Residual Analysis:
+
+Residual Plot: Plot the residuals (observed - predicted values) against the fitted values. The residuals should exhibit random scatter around zero without any obvious patterns.
+
+```{r}
+plot(fitted(model_2), residuals(model_2), xlab = "Fitted Values", ylab = "Residuals")
+```
+
+Majority of the data points are scattered around 0, with no obvious pattern.
+
+
+Q-Q Plot: A quantile-quantile plot can help you assess whether the residuals follow a normal distribution. The points on the Q-Q plot should follow a straight line.
+
+```{r}
+qqnorm(residuals(model_2))
+qqline(residuals(model_2))
+
+```
+
+
+While a majority of the data points on the Q-Q plot adhere to a linear pattern, it's crucial to observe that there is some deviation from this line in both the upper and lower tails of the plot.
+
+
+Deviance Residuals: Deviance residuals can be useful for checking the goodness of fit. These residuals should have an approximately normal distribution.
+
+```{r}
+plot(model_2, which = 1) # Plot deviance residuals
+
+```
+
+
+The deviance residuals exhibit a departure from a normal distribution.
+
+
+AIC and BIC: Compare the AIC (Akaike Information Criterion) and BIC (Bayesian Information Criterion) values for your model. Lower AIC and BIC values indicate a better-fitting model. 
+
+```{r}
+
+AIC(model_1)
+BIC(model_1)
+
+AIC(model_2)
+BIC(model_2)
+
+```
+
+
+Model_2 demonstrates superior fit compared to model_1, as evidenced by notably lower AIC and BIC values.
+
+
+
+```{r}
+library(jtools)
+
+# plot regression coefficients for model_2
+plot_summs(model_2, scale = TRUE, exp = TRUE)
+
+```
+
+
+
+
+1. Layout exhibits an exp(Estimate) of approximately 0.90, implying that for every 1 unit alteration in Layout, Sales are expected to decrease by a factor of 0.90.
+
+2. Experience carries an exp(Estimate) of approximately 1.60, indicating that for every 1 unit shift in Experience, Sales are anticipated to increase by a factor of 1.60.
+
+3. Hence, the recommendation is to prioritize investment in Staff Training over altering the Layout of the company's stores to boost big-ticket sales.
+
+
+## Conclusion
+
+1. It is advised to adopt Layout 2 as the international standard for the company.
+
+2. The experience level of the staff plays a more substantial role in driving high-value sales compared to the store's layout. It is recommended to invest in training staff to level 4, than modernising the layout of the stores.
+
+3. After training staff to experience level 4, it makes business sense to upgrade stores with layout 3 and 4 to layout 2.
+
+
+
+## Appendix
+
+### Evaluating Predictive Capabilities of Model
+
+The dataset "read.data," consisting of 72 observations, has been divided into training and test sets to provide a realistic evaluation of how the model will perform when applied in real-world scenarios.
+
+The data is randomly split into training (80%) and test (20%) datasets 
+
+```{r}
+# Install and load the caret package if you haven't already
+#install.packages("caret")
+library(caret)
+
+# Set a random seed for reproducibility
+set.seed(123)
+
+# Split the data into training (80%) and test (20%) sets
+trainIndex <- createDataPartition(read.data$Sales, p = 0.8, 
+                                  list = FALSE, 
+                                  times = 1)
+training_data <- read.data[trainIndex, ]
+testing_data <- read.data[-trainIndex, ]
+
+```
+
+```{r}
+# Install and load the caTools package if you haven't already
+#install.packages("caTools")
+library(caTools)
+
+# Set a random seed for reproducibility
+set.seed(123)
+
+# Split the data into training (70%) and test (30%) sets
+splitIndex <- sample.split(read.data$Sales, SplitRatio = 0.7)
+training_data <- subset(read.data, splitIndex == TRUE)
+testing_data <- subset(read.data, splitIndex == FALSE)
+
+```
+
+
+```{r}
+# Fit a GLM model to the training data
+glm_model <- glm(Sales ~ ., data = training_data, family = poisson)
+
+# Make predictions on the test data
+predictions <- predict(glm_model, newdata = testing_data, type = "response")
+
+# Evaluate the model (e.g., calculate RMSE, R-squared, etc.)
+# You can use various evaluation metrics depending on your problem.
+
+summary(glm_model)
+
+
+```
+
+Although this model was trained on a smaller dataset, it exhibits coefficients that closely resemble those of model_2. Specifically, both models assign the smallest coefficient to "Hours" and the highest one to "Experience". Therefore, results from model_2 are validated.
+
+
+```{r}
+# Fit a GLM model to the training data (assuming you've already split the data)
+glm_model <- glm(Sales ~ ., data = training_data, family = poisson)
+
+# Make predictions on the test data
+predictions <- predict(glm_model, newdata = testing_data, type = "response")
+
+# Calculate Mean Absolute Error (MAE)
+mae <- mean(abs(predictions - testing_data$Sales))
+cat("Mean Absolute Error (MAE):", mae, "\n")
+
+# Calculate Root Mean Squared Error (RMSE)
+rmse <- sqrt(mean((predictions - testing_data$Sales)^2))
+cat("Root Mean Squared Error (RMSE):", rmse, "\n")
+
+# Calculate R-squared (R²)
+actual_mean <- mean(testing_data$Sales)
+sst <- sum((testing_data$Sales - actual_mean)^2)
+ssr <- sum((predictions - testing_data$Sales)^2)
+r_squared <- 1 - (ssr / sst)
+cat("R-squared (R²):", r_squared, "\n")
+
+```
+The results are common metrics used to evaluate the performance of a predictive model, typically in the context of regression analysis. Let's interpret each of these metrics:
+
+Mean Absolute Error (MAE):
+
+MAE is a measure of the average absolute errors between the predicted values and the actual values. It quantifies the average magnitude of errors in the model's predictions. In this case, the MAE is 17.61212. This means, on average, the model's predictions are off by approximately 17.61 units from the actual values.
+
+Root Mean Squared Error (RMSE):
+
+RMSE is another measure of the error between predicted values and actual values. It's similar to MAE but gives more weight to larger errors because it squares the errors before taking the square root. In this case, the RMSE is 25.70194. This means, on average, the model's predictions are off by approximately 25.70 units from the actual values, with larger errors having a greater impact.
+
+R-squared (R²):
+
+R-squared, also known as the coefficient of determination, is a measure of how well the model explains the variance in the data. It ranges from 0 to 1, with higher values indicating a better fit. In thus case, the R-squared value is 0.8559824. This means that approximately 85.60% of the variance in the dependent variable (the variable to predict) is explained by the model. In other words, the model accounts for a significant portion of the variability in the data, which suggests it has a reasonably good fit.
+
+
+In summary:
+
+Model's MAE of 17.61212 indicates that, on average, it makes predictions that are off by approximately 17.61 units from the true values.
+
+The RMSE of 25.70194 suggests that the model's predictions have a slightly higher error, with a heavier penalty for larger errors compared to MAE.
+
+The R-squared value of 0.8559824 indicates that the model explains a substantial amount of the variability in the data, suggesting it's a reasonably good fit for the data.
+
+
+
+
